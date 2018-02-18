@@ -33,13 +33,36 @@ Decoder:
 ## Performance:
 IMPORTANT: One obstacle to a good dilated ResNet model is that batch normalization layers are usually not well trained with a small batch size (<16). Ideally, batch size >64 will get you the best results. In this repo, we trained customized ResNet on Places365 (will be automatically downloaded when needed) as the initialization for scene parsing model, which partly solved the problem. You can simply set ```--fix_bn 1``` to freeze BN parameters during training.
 
-- resnet34_dilated8 + c1_bilinear: Mean IoU 0.3277, Accuracy: 76.47% 
-
-- resnet34_dilated8 + psp_bilinear: Mean IoU 0.3634, Accuracy: 77.98% 
-
-- resnet50_dilated8 + c1_bilinear: Mean IoU 0.3385, Accuracy: 76.40% 
-
-- resnet50_dilated8 + psp_bilinear: Mean IoU 0.3800, Accuracy: 78.21% 
+<table><tbody>
+    <th valign="bottom">Encoder</th>
+    <th valign="bottom">Decoder</th>
+    <th valign="bottom">Mean IoU</th>
+    <th valign="bottom">Pixel Accuracy</th>
+    <tr>
+        <td>resnet34_dilated8</td>
+        <td>c1_bilinear</td>
+        <td>0.3277</td>
+        <td>76.47%</td>
+    </tr>
+    <tr>
+        <td>resnet34_dilated8</td>
+        <td>psp_bilinear</td>
+        <td>0.3634</td>
+        <td>77.98%</td>
+    </tr>
+    <tr>
+        <td>resnet50_dilated8</td>
+        <td>c1_bilinear</td>
+        <td>0.3385</td>
+        <td>76.40%</td>
+    </tr>
+    <tr>
+        <td>resnet50_dilated8</td>
+        <td>psp_bilinear</td>
+        <td>0.3800</td>
+        <td>78.21%</td>
+    </tr>
+</tbody></table>
 
 ## Environment
 The code is developed under the following configurations.
@@ -98,17 +121,20 @@ usage: eval.py [-h] --id ID [--suffix SUFFIX] [--arch_encoder ARCH_ENCODER]
 
 
 ## Test/Inference
-1. Do inference on a single image:
+1. Here is a simple demo to do inference on a single image:
 ```bash
-python test.py --ckpt CKPT_PATH --id MODEL_ID --test_img TEST_IMG
+chmod +x demo_test.sh
+./demo_test.sh
 ```
+This script downloads pretrained models and a test image, runs the test script, and saves predicted segmentation (.png) to the working directory.
+
 2. Input arguments: (see full input arguments via ```python test.py -h ```)
 ```bash
-usage: test.py [-h] --id ID [--suffix SUFFIX] [--arch_encoder ARCH_ENCODER]
-               [--arch_decoder ARCH_DECODER] [--fc_dim FC_DIM] --test_img
-               TEST_IMG [--num_val NUM_VAL] [--batch_size BATCH_SIZE]
-               [--imgSize IMGSIZE] [--segSize SEGSIZE] [--num_class NUM_CLASS]
-               [--ckpt CKPT] [--visualize VISUALIZE] [--result RESULT]
+usage: test.py [-h] --test_img TEST_IMG --model_path MODEL_PATH
+               [--suffix SUFFIX] [--result RESULT]
+               [--arch_encoder ARCH_ENCODER] [--arch_decoder ARCH_DECODER]
+               [--fc_dim FC_DIM] [--num_class NUM_CLASS] [--imgSize IMGSIZE]
+               [--segSize SEGSIZE]
 ```
 
 ## Reference
