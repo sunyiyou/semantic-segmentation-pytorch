@@ -28,8 +28,9 @@ def forward_with_loss(nets, batch_data, args, is_train=True):
     # feed input data
     input_img = Variable(imgs, volatile=not is_train)
     label_seg = Variable(segs, volatile=not is_train)
-    input_img = input_img.cuda()
-    label_seg = label_seg.cuda()
+    if args.num_gpus > 0:
+        input_img = input_img.cuda()
+        label_seg = label_seg.cuda()
 
     # forward
     pred = net_decoder(net_encoder(input_img))
@@ -275,8 +276,9 @@ def main(args):
         net_decoder = nn.DataParallel(net_decoder,
                                       device_ids=range(args.num_gpus))
     nets = (net_encoder, net_decoder, crit)
-    for net in nets:
-        net.cuda()
+    if args.num_gpus > 0:
+        for net in nets:
+            net.cuda()
 
     # Set up optimizers
     optimizers = create_optimizers(nets, args)
@@ -285,13 +287,13 @@ def main(args):
     history = {split: {'epoch': [], 'err': [], 'acc': []}
                for split in ('train', 'val')}
     # initial eval
-    evaluate(nets, loader_val, history, 0, args)
+    # evaluate(nets, loader_val, history, 0, args)
     for epoch in range(1, args.num_epoch + 1):
         train(nets, loader_train, optimizers, history, epoch, args)
 
         # Evaluation and visualization
-        if epoch % args.eval_epoch == 0:
-            evaluate(nets, loader_val, history, epoch, args)
+        # if epoch % args.eval_epoch == 0:
+        #     evaluate(nets, loader_val, history, epoch, args)
 
         # checkpointing
         checkpoint(nets, history, args)
@@ -329,7 +331,7 @@ if __name__ == '__main__':
                         default='./data/ADEChallengeData2016/annotations')
 
     # optimization related arguments
-    parser.add_argument('--num_gpus', default=1, type=int,
+    parser.add_argument('--num_gpus', default=0, type=int,
                         help='number of gpus to use')
     parser.add_argument('--batch_size_per_gpu', default=16, type=int,
                         help='input batch size')
@@ -376,6 +378,8 @@ if __name__ == '__main__':
         print("{:16} {}".format(key, val))
 
     args.batch_size = args.num_gpus * args.batch_size_per_gpu
+    if args.num_gpus == 0:
+        args.batch_size = args.batch_size_per_gpu
     if args.num_val < args.batch_size:
         args.num_val = args.batch_size
 

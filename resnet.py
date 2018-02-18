@@ -182,7 +182,7 @@ def resnet34(pretrained=False, **kwargs):
     """
     model = ResNet(BasicBlock, [3, 4, 6, 3], **kwargs)
     if pretrained:
-        model.load_state_dict(load_url(model_urls['resnet34']))
+        model.load_state_dict(load_url(model_urls['resnet34'], map_location=lambda storage, loc: storage))
     return model
 
 
