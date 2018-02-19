@@ -59,7 +59,7 @@ elif APP == "vqa":
 elif APP == "classification":
     CAM = False
 
-    CNN_MODEL = 'alexnet'  # model arch: wide_resnet18, resnet18, alexnet, resnet50, densenet161
+    CNN_MODEL = 'resnet18'  # model arch: wide_resnet18, resnet18, alexnet, resnet50, densenet161
     DATASET = 'imagenet'  # model trained on: places365 or imagenet
 
     OUTPUT_FOLDER = "result/pytorch_"+CNN_MODEL+"_"+DATASET
