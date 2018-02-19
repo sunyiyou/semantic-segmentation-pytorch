@@ -39,6 +39,10 @@ class ModelBuilder():
             net_encoder = Resnet(orig_resnet)
         elif arch == 'alexnet':
             net_encoder = torchvision.models.alexnet(pretrained=pretrained).features
+        elif arch == 'vgg16':
+            net_encoder = torchvision.models.vgg16(pretrained=pretrained).features
+        elif arch == 'resnet18':
+            net_encoder = torchvision.models.resnet18(pretrained=pretrained).layer4
         elif arch == 'resnet34_dilated8':
             orig_resnet = resnet.__dict__['resnet34'](pretrained=pretrained)
             net_encoder = ResnetDilated(orig_resnet,

@@ -80,6 +80,7 @@ def visualize(batch_data, pred, args):
 def train(nets, loader, optimizers, history, epoch, args):
     batch_time = AverageMeter()
     data_time = AverageMeter()
+    epoch_error =AverageMeter()
 
     # switch to train mode
     for net in nets:
@@ -97,8 +98,8 @@ def train(nets, loader, optimizers, history, epoch, args):
 
         # forward pass
         pred, err = forward_with_loss(nets, batch_data, args, is_train=True)
-
-        # Backward
+        #
+        # # Backward
         err.backward()
         for optimizer in optimizers:
             optimizer.step()
@@ -107,22 +108,24 @@ def train(nets, loader, optimizers, history, epoch, args):
         batch_time.update(time.time() - tic)
         tic = time.time()
 
+        epoch_error.update(err.data[0])
+
         # calculate accuracy, and display
         if i % args.disp_iter == 0:
-            acc, _ = accuracy(batch_data, pred)
+            # acc, _ = accuracy(batch_data, pred)
 
             print('Epoch: [{}][{}/{}], Time: {:.2f}, Data: {:.2f}, '
                   'lr_encoder: {}, lr_decoder: {}, '
-                  'Accurarcy: {:4.2f}%, Loss: {}'
+                  'Loss: {:.4f}, Epoch-loss:{:.4f} '
                   .format(epoch, i, args.epoch_iters,
                           batch_time.average(), data_time.average(),
                           args.lr_encoder, args.lr_decoder,
-                          acc*100, err.data[0]))
+                          err.data[0], epoch_error.avg,))
 
             fractional_epoch = epoch - 1 + 1. * i / args.epoch_iters
             history['train']['epoch'].append(fractional_epoch)
             history['train']['err'].append(err.data[0])
-            history['train']['acc'].append(acc)
+            # history['train']['acc'].append(acc)
 
 
 def evaluate(nets, loader, history, epoch, args):
@@ -185,31 +188,17 @@ def checkpoint(nets, history, args):
     print('Saving checkpoints...')
     (net_encoder, net_decoder, crit) = nets
     suffix_latest = 'latest.pth'
-    suffix_best = 'best.pth'
 
     if args.num_gpus > 1:
-        dict_encoder = net_encoder.module.state_dict()
         dict_decoder = net_decoder.module.state_dict()
     else:
-        dict_encoder = net_encoder.state_dict()
         dict_decoder = net_decoder.state_dict()
 
     torch.save(history,
                '{}/history_{}'.format(args.ckpt, suffix_latest))
-    torch.save(dict_encoder,
-               '{}/encoder_{}'.format(args.ckpt, suffix_latest))
     torch.save(dict_decoder,
                '{}/decoder_{}'.format(args.ckpt, suffix_latest))
 
-    cur_err = history['val']['err'][-1]
-    if cur_err < args.best_err:
-        args.best_err = cur_err
-        torch.save(history,
-                   '{}/history_{}'.format(args.ckpt, suffix_best))
-        torch.save(dict_encoder,
-                   '{}/encoder_{}'.format(args.ckpt, suffix_best))
-        torch.save(dict_decoder,
-                   '{}/decoder_{}'.format(args.ckpt, suffix_best))
 
 
 def create_optimizers(nets, args):
@@ -232,11 +221,9 @@ def adjust_learning_rate(optimizers, epoch, args):
                  ** args.lr_pow
     args.lr_encoder *= drop_ratio
     args.lr_decoder *= drop_ratio
-    (optimizer_encoder, optimizer_decoder) = optimizers
-    for param_group in optimizer_encoder.param_groups:
-        param_group['lr'] = args.lr_encoder
-    for param_group in optimizer_decoder.param_groups:
-        param_group['lr'] = args.lr_decoder
+    for optimizer in optimizers:
+        for param_group in optimizer.param_groups:
+            param_group['lr'] = args.lr_encoder
 
 
 def main(args):
@@ -305,7 +292,7 @@ if __name__ == '__main__':
     # Model related arguments
     parser.add_argument('--id', default='baseline',
                         help="a name for identifying the model")
-    parser.add_argument('--arch_encoder', default='alexnet',
+    parser.add_argument('--arch_encoder', default=settings.CNN_MODEL,
                         help="architecture of net_encoder")
     parser.add_argument('--arch_decoder', default='simple',
                         help="architecture of net_decoder")
@@ -313,7 +300,7 @@ if __name__ == '__main__':
                         help="weights to finetune net_encoder")
     parser.add_argument('--weights_decoder', default='',
                         help="weights to finetune net_decoder")
-    parser.add_argument('--fc_dim', default=256, type=int,
+    parser.add_argument('--fc_dim', default=settings.FC_DIM, type=int,
                         help='number of features between encoder and decoder')
 
     # Path related arguments
@@ -332,7 +319,7 @@ if __name__ == '__main__':
     if settings.GPU == True:
         parser.add_argument('--num_gpus', default=1, type=int,
                             help='number of gpus to use')
-        parser.add_argument('--batch_size_per_gpu', default=4, type=int,
+        parser.add_argument('--batch_size_per_gpu', default=settings.FEAT_BATCH_SIZE, type=int,
                             help='input batch size')
     else:
         parser.add_argument('--num_gpus', default=0, type=int,
@@ -358,7 +345,7 @@ if __name__ == '__main__':
                         help='number of images to evalutate')
     parser.add_argument('--num_class', default=1198, type=int,
                         help='number of classes')
-    parser.add_argument('--workers', default=12, type=int,
+    parser.add_argument('--workers', default=24, type=int,
                         help='number of data loading workers')
     parser.add_argument('--imgSize', default=224, type=int,
                         help='input image size')

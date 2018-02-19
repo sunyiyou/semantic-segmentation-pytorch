@@ -1,5 +1,5 @@
 ######### global settings  #########
-GPU = False # running on GPU is highly suggested
+GPU = True # running on GPU is highly suggested
 TEST_MODE = False                            # turning on the testmode means the code will run on a small dataset.
 CLEAN = False                               # set to "True" if you want to clean the temporary large files after generating result
 CATAGORIES = ["object", "part"]             # concept categories that are chosen to detect: "object", "part", "scene", "material", "texture", "color"
@@ -61,6 +61,7 @@ elif APP == "classification":
 
     CNN_MODEL = 'alexnet'  # model arch: wide_resnet18, resnet18, alexnet, resnet50, densenet161
     DATASET = 'imagenet'  # model trained on: places365 or imagenet
+
     OUTPUT_FOLDER = "result/pytorch_"+CNN_MODEL+"_"+DATASET
 
     # DATASET_PATH = '/home/sunyiyou/dataset/places365_standard'
@@ -69,12 +70,15 @@ elif APP == "classification":
     DATASET_INDEX_FILE = "/Users/sunyiyou/Desktop/workspace/dataset/places/val_sample.txt"
     if CNN_MODEL == "alexnet":
         GRAD_CAM = True
+        FC_DIM = 256
     else:
         GRAD_CAM = False
+        FC_DIM = 512
     if DATASET == 'places365':
         NUM_CLASSES = 365
         if CNN_MODEL == 'resnet18':
             MODEL_FILE = 'zoo/resnet18_places365.pth.tar'
+            FC_DIM = 512
             MODEL_PARALLEL = True
         elif CNN_MODEL == 'wideresnet18':
             MODEL_FILE = 'zoo/whole_wideresnet18_places365_python36.pth.tar'
@@ -112,7 +116,7 @@ if TEST_MODE:
 else:
     WORKERS = 12
     BATCH_SIZE = 128
-    FEAT_BATCH_SIZE = 16
+    FEAT_BATCH_SIZE = 8
     TALLY_BATCH_SIZE = 16
     TALLY_AHEAD = 4
     INDEX_FILE = 'index.csv'
