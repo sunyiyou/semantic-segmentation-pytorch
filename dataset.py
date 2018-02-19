@@ -5,6 +5,49 @@ import torch
 import torch.utils.data as torchdata
 from torchvision import transforms
 from scipy.misc import imread, imresize
+from broaden_loader import SegmentationData, scale_segmentation
+
+class ConceptDataset(torchdata.Dataset):
+    def __init__(self, opt):
+        self.root = opt.broaden_root
+        self.categories = ["object", "part"]
+        self.data = SegmentationData(opt.broaden_root, categories=self.categories)
+        self.imgSize = opt.imgSize
+        self.segSize = opt.segSize
+        self.mean = [109.5388, 118.6897, 124.6901]
+        # mean and std
+        self.img_transform = transforms.Compose([
+            transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                 std=[0.229, 0.224, 0.225])])
+
+    def __getitem__(self, index):
+        img_dict = self.data.image[index]
+        img = imread(os.path.join(self.root, 'images', img_dict['image']), mode='RGB')
+        if img.shape[0] != self.segSize:
+            img = imresize(img, (self.segSize, self.segSize))
+        img = np.array(img, dtype=np.float32)
+        img -= np.array(self.mean)[::-1]
+        # img = img.astype(np.float32) / 255.
+        img = img.transpose((2, 0, 1))
+        image = torch.from_numpy(img)
+        image.div_(255.0 * 0.224)
+        # image = self.img_transform(image)
+
+        seg = np.empty((len(self.categories), self.segSize, self.segSize), dtype=np.long)
+        for i, cat in enumerate(self.categories):
+            if img_dict[cat] != []:
+                rgb = imread(os.path.join(self.root, 'images', img_dict[cat][0]))
+                cpt = rgb[:, :, 0] + rgb[:, :, 1] * 256
+                seg[i] = scale_segmentation(cpt, (self.segSize, self.segSize))
+
+        seg = seg[0] + (seg[0] == 0) * seg[1]
+        segmentation = torch.LongTensor(seg)
+        return image, segmentation, img_dict['image']
+
+    def __len__(self):
+        return len(self.data.image)
+
+
 
 
 class Dataset(torchdata.Dataset):

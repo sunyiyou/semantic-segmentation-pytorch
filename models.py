@@ -37,6 +37,8 @@ class ModelBuilder():
         elif arch == 'resnet34':
             orig_resnet = resnet.__dict__['resnet34'](pretrained=pretrained)
             net_encoder = Resnet(orig_resnet)
+        elif arch == 'alexnet':
+            net_encoder = torchvision.models.alexnet(pretrained=pretrained).features
         elif arch == 'resnet34_dilated8':
             orig_resnet = resnet.__dict__['resnet34'](pretrained=pretrained)
             net_encoder = ResnetDilated(orig_resnet,
@@ -83,6 +85,10 @@ class ModelBuilder():
                                       fc_dim=fc_dim,
                                       segSize=segSize,
                                       use_softmax=use_softmax)
+        elif arch == 'simple':
+            net_decoder = SimpleBilinear(num_class=num_class,
+                                      fc_dim=fc_dim,
+                                      segSize=segSize)
         else:
             raise Exception('Architecture undefined!')
 
@@ -303,6 +309,19 @@ class C5Bilinear(nn.Module):
             x = nn.functional.softmax(x)
         else:
             x = nn.functional.log_softmax(x)
+        return x
+
+class SimpleBilinear(nn.Module):
+    def __init__(self, num_class=1198, fc_dim=512, segSize=224):
+        super(SimpleBilinear, self).__init__()
+        self.segSize = segSize
+        self.conv_last = nn.Conv2d(fc_dim, num_class, 1, 1, 0, bias=False)
+
+    def forward(self, x):
+        segSize = (self.segSize, self.segSize)
+        x = self.conv_last(x)
+        x = nn.functional.upsample(x, size=segSize, mode='bilinear')
+        x = nn.functional.log_softmax(x)
         return x
 
 

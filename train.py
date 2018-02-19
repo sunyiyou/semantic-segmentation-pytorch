@@ -12,13 +12,14 @@ from torch.autograd import Variable
 from scipy.io import loadmat
 from scipy.misc import imresize, imsave
 # Our libs
-from dataset import Dataset
+from dataset import Dataset, ConceptDataset
 from models import ModelBuilder
 from utils import AverageMeter, colorEncode, accuracy
 
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+import settings
 
 
 def forward_with_loss(nets, batch_data, args, is_train=True):
@@ -26,14 +27,16 @@ def forward_with_loss(nets, batch_data, args, is_train=True):
     (imgs, segs, infos) = batch_data
 
     # feed input data
-    input_img = Variable(imgs, volatile=not is_train)
-    label_seg = Variable(segs, volatile=not is_train)
+    input_img = Variable(imgs)
+    label_seg = Variable(segs)
     if args.num_gpus > 0:
         input_img = input_img.cuda()
         label_seg = label_seg.cuda()
 
     # forward
-    pred = net_decoder(net_encoder(input_img))
+    mid_feat = net_encoder(input_img)
+    mid_feat = Variable(mid_feat.data, requires_grad = True)
+    pred = net_decoder(mid_feat)
     err = crit(pred, label_seg)
     return pred, err
 
@@ -211,17 +214,17 @@ def checkpoint(nets, history, args):
 
 def create_optimizers(nets, args):
     (net_encoder, net_decoder, crit) = nets
-    optimizer_encoder = torch.optim.SGD(
-        net_encoder.parameters(),
-        lr=args.lr_encoder,
-        momentum=args.beta1,
-        weight_decay=args.weight_decay)
+    # optimizer_encoder = torch.optim.SGD(
+    #     net_encoder.parameters(),
+    #     lr=args.lr_encoder,
+    #     momentum=args.beta1,
+    #     weight_decay=args.weight_decay)
     optimizer_decoder = torch.optim.SGD(
         net_decoder.parameters(),
         lr=args.lr_decoder,
         momentum=args.beta1,
         weight_decay=args.weight_decay)
-    return (optimizer_encoder, optimizer_decoder)
+    return [optimizer_decoder]
 
 
 def adjust_learning_rate(optimizers, epoch, args):
@@ -248,23 +251,16 @@ def main(args):
                                         num_class=args.num_class,
                                         weights=args.weights_decoder)
 
-    crit = nn.NLLLoss2d(ignore_index=-1)
+    crit = nn.NLLLoss2d(ignore_index=0)
 
     # Dataset and Loader
-    dataset_train = Dataset(args.list_train, args, is_train=1)
-    dataset_val = Dataset(args.list_val, args,
-                          max_sample=args.num_val, is_train=0)
+
+    dataset_train = ConceptDataset(args)
     loader_train = torch.utils.data.DataLoader(
         dataset_train,
         batch_size=args.batch_size,
         shuffle=True,
         num_workers=int(args.workers),
-        drop_last=True)
-    loader_val = torch.utils.data.DataLoader(
-        dataset_val,
-        batch_size=args.batch_size,
-        shuffle=False,
-        num_workers=2,
         drop_last=True)
     args.epoch_iters = int(len(dataset_train) / args.batch_size)
     print('1 Epoch = {} iters'.format(args.epoch_iters))
@@ -309,15 +305,15 @@ if __name__ == '__main__':
     # Model related arguments
     parser.add_argument('--id', default='baseline',
                         help="a name for identifying the model")
-    parser.add_argument('--arch_encoder', default='resnet34_dilated8',
+    parser.add_argument('--arch_encoder', default='alexnet',
                         help="architecture of net_encoder")
-    parser.add_argument('--arch_decoder', default='c1_bilinear',
+    parser.add_argument('--arch_decoder', default='simple',
                         help="architecture of net_decoder")
     parser.add_argument('--weights_encoder', default='',
                         help="weights to finetune net_encoder")
     parser.add_argument('--weights_decoder', default='',
                         help="weights to finetune net_decoder")
-    parser.add_argument('--fc_dim', default=512, type=int,
+    parser.add_argument('--fc_dim', default=256, type=int,
                         help='number of features between encoder and decoder')
 
     # Path related arguments
@@ -329,16 +325,24 @@ if __name__ == '__main__':
                         default='./data/ADEChallengeData2016/images')
     parser.add_argument('--root_seg',
                         default='./data/ADEChallengeData2016/annotations')
+    parser.add_argument('--broaden_root',
+                        default='../NetDissect-Lite/dataset/broden1_224')
 
     # optimization related arguments
-    parser.add_argument('--num_gpus', default=0, type=int,
-                        help='number of gpus to use')
-    parser.add_argument('--batch_size_per_gpu', default=16, type=int,
-                        help='input batch size')
+    if settings.GPU == True:
+        parser.add_argument('--num_gpus', default=1, type=int,
+                            help='number of gpus to use')
+        parser.add_argument('--batch_size_per_gpu', default=4, type=int,
+                            help='input batch size')
+    else:
+        parser.add_argument('--num_gpus', default=0, type=int,
+                            help='number of gpus to use')
+        parser.add_argument('--batch_size_per_gpu', default=1, type=int,
+                            help='input batch size')
     parser.add_argument('--num_epoch', default=100, type=int,
                         help='epochs to train for')
     parser.add_argument('--optim', default='SGD', help='optimizer')
-    parser.add_argument('--lr_encoder', default=1e-3, type=float, help='LR')
+    parser.add_argument('--lr_encoder', default=0, type=float, help='LR')
     parser.add_argument('--lr_decoder', default=1e-2, type=float, help='LR')
     parser.add_argument('--lr_pow', default=0.9, type=float,
                         help='power in poly to drop LR')
@@ -350,15 +354,15 @@ if __name__ == '__main__':
                         help='fix bn params')
 
     # Data related arguments
-    parser.add_argument('--num_val', default=128, type=int,
+    parser.add_argument('--num_val', default=16, type=int,
                         help='number of images to evalutate')
-    parser.add_argument('--num_class', default=150, type=int,
+    parser.add_argument('--num_class', default=1198, type=int,
                         help='number of classes')
-    parser.add_argument('--workers', default=16, type=int,
+    parser.add_argument('--workers', default=12, type=int,
                         help='number of data loading workers')
-    parser.add_argument('--imgSize', default=384, type=int,
+    parser.add_argument('--imgSize', default=224, type=int,
                         help='input image size')
-    parser.add_argument('--segSize', default=384, type=int,
+    parser.add_argument('--segSize', default=224, type=int,
                         help='output image size')
 
     # Misc arguments
@@ -367,7 +371,7 @@ if __name__ == '__main__':
                         help='folder to output checkpoints')
     parser.add_argument('--vis', default='./vis',
                         help='folder to output visualization during training')
-    parser.add_argument('--disp_iter', type=int, default=20,
+    parser.add_argument('--disp_iter', type=int, default=1,
                         help='frequency to display')
     parser.add_argument('--eval_epoch', type=int, default=1,
                         help='frequency to evaluate')
